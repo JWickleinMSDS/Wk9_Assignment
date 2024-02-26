@@ -16,12 +16,17 @@ type Job struct {
 func loadImage(paths []string) <-chan Job {
 	out := make(chan Job)
 	go func() {
-		// For each input path create a job and add it to
-		// the out channel
 		for _, p := range paths {
-			job := Job{InputPath: p,
-				OutPath: strings.Replace(p, "images/", "images/output/", 1)}
-			job.Image = imageprocessing.ReadImage(p)
+			image, err := imageprocessing.ReadImage(p)
+			if err != nil {
+				fmt.Println("Error loading image:", err)
+				continue // Skip this image
+			}
+			job := Job{
+				InputPath: p,
+				OutPath:   strings.Replace(p, "images/", "images/output/", 1),
+				Image:     image,
+			}
 			out <- job
 		}
 		close(out)
@@ -58,9 +63,14 @@ func convertToGrayscale(input <-chan Job) <-chan Job {
 func saveImage(input <-chan Job) <-chan bool {
 	out := make(chan bool)
 	go func() {
-		for job := range input { // Read from the channel
-			imageprocessing.WriteImage(job.OutPath, job.Image)
-			out <- true
+		for job := range input {
+			err := imageprocessing.WriteImage(job.OutPath, job.Image)
+			if err != nil {
+				fmt.Println("Error saving image:", err)
+				out <- false // Indicate failure
+				continue
+			}
+			out <- true // Indicate success
 		}
 		close(out)
 	}()
@@ -84,7 +94,7 @@ func main() {
 		if success {
 			fmt.Println("Success!")
 		} else {
-			fmt.Println("Failed!")
+			fmt.Println("Failed to process an image.")
 		}
 	}
 }
